@@ -10,7 +10,7 @@ export default function DataKaryawan({ setActivePage, setSelectedEmployeeId }) {
   const [verificationCode, setVerificationCode] = useState('');
   const [modalMessage, setModalMessage] = useState('');
 
-  // ... (data dummy employees tetap sama)
+  // Data dummy employees (akan kita ganti dengan data dari database nanti)
   const employees = [
     {
       id: 'EMP001',
@@ -20,7 +20,6 @@ export default function DataKaryawan({ setActivePage, setSelectedEmployeeId }) {
       position: 'Manager',
       joinDate: '01/01/2020',
     },
-    // ... data lainnya
   ];
 
   console.log('Halaman Data Karyawan dirender.'); // log untuk debugging
@@ -31,26 +30,28 @@ export default function DataKaryawan({ setActivePage, setSelectedEmployeeId }) {
     const { data: { user } } = await supabase.auth.getUser();
 
     if (!user) {
-      console.error('Admin tidak login.');
+      console.error('Admin tidak login.'); // log error jika admin tidak ditemukan
       setModalMessage('Gagal mendapatkan data admin. Silakan login ulang.');
       setVerificationCode('ERROR');
       setIsModalOpen(true);
       return;
     }
 
+    // Generate kode 4 digit secara acak
     const code = Math.floor(1000 + Math.random() * 9000).toString();
     console.log('Kode yang digenerate:', code, 'untuk admin ID:', user.id); // log untuk debugging
 
+    // Memasukkan kode baru ke tabel 'verification_codes'
     const { error } = await supabase
       .from('verification_codes')
       .insert([{ code: code, admin_id: user.id }]);
 
     if (error) {
-      console.error('Gagal menyimpan kode verifikasi:', error.message);
+      console.error('Gagal menyimpan kode verifikasi:', error.message); // log jika ada error dari supabase
       setModalMessage('Gagal membuat kode. Coba lagi.');
       setVerificationCode('ERROR');
     } else {
-      console.log('Kode verifikasi berhasil disimpan.');
+      console.log('Kode verifikasi berhasil disimpan ke database.'); // log sukses
       setVerificationCode(code);
       setModalMessage('Berikan kode ini kepada karyawan baru Anda untuk mendaftar.');
     }
@@ -95,10 +96,8 @@ export default function DataKaryawan({ setActivePage, setSelectedEmployeeId }) {
         <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
       </div>
 
-      {/* ... (Tabel karyawan tetap sama) ... */}
       <div className="mt-6 overflow-hidden rounded-lg bg-gray-800 shadow-lg">
         <table className="min-w-full divide-y divide-gray-700">
-          {/* ... thead ... */}
           <thead className="bg-gray-700">
             <tr>
               <th scope="col" className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-300">Nama</th>
@@ -140,7 +139,6 @@ export default function DataKaryawan({ setActivePage, setSelectedEmployeeId }) {
           </tbody>
         </table>
       </div>
-
 
       <VerificationCodeModal
         isOpen={isModalOpen}
