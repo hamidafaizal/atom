@@ -1,11 +1,16 @@
 import React, { useState } from 'react';
-import { Search, Plus, Trash, Edit, UserCircle2 } from 'lucide-react';
+import { Search, Plus, Trash, Edit } from 'lucide-react';
+import { supabase } from '../supabaseClient'; // Import supabase client
+import VerificationCodeModal from '../modal/VerificationCodeModal.jsx'; // Import modal baru
 
 // DataKaryawan.jsx: Komponen halaman Data Karyawan.
 export default function DataKaryawan({ setActivePage, setSelectedEmployeeId }) {
   const [searchTerm, setSearchTerm] = useState('');
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [verificationCode, setVerificationCode] = useState('');
+  const [modalMessage, setModalMessage] = useState('');
 
-  // Data dummy untuk daftar karyawan
+  // ... (data dummy employees tetap sama)
   const employees = [
     {
       id: 'EMP001',
@@ -15,44 +20,48 @@ export default function DataKaryawan({ setActivePage, setSelectedEmployeeId }) {
       position: 'Manager',
       joinDate: '01/01/2020',
     },
-    {
-      id: 'EMP002',
-      avatar: 'https://placehold.co/40x40/eab308/white?text=JS',
-      name: 'Jane Smith',
-      email: 'jane.smith@email.com',
-      position: 'Developer',
-      joinDate: '15/03/2021',
-    },
-    {
-      id: 'EMP003',
-      avatar: 'https://placehold.co/40x40/ef4444/white?text=PJ',
-      name: 'Peter Jones',
-      email: 'peter.jones@email.com',
-      position: 'Designer',
-      joinDate: '22/07/2022',
-    },
-    {
-      id: 'EMP004',
-      avatar: 'https://placehold.co/40x40/10b981/white?text=MA',
-      name: 'Mary Anne',
-      email: 'mary.anne@email.com',
-      position: 'HR',
-      joinDate: '10/05/2023',
-    },
-    // Tambahkan data karyawan dummy lainnya jika diperlukan
+    // ... data lainnya
   ];
 
   console.log('Halaman Data Karyawan dirender.'); // log untuk debugging
 
-  // Fungsi untuk menangani input pencarian
+  // Fungsi untuk generate dan menyimpan kode verifikasi
+  const handleAddEmployeeClick = async () => {
+    console.log('Tombol Tambah Karyawan diklik.'); // log untuk debugging
+    const { data: { user } } = await supabase.auth.getUser();
+
+    if (!user) {
+      console.error('Admin tidak login.');
+      setModalMessage('Gagal mendapatkan data admin. Silakan login ulang.');
+      setVerificationCode('ERROR');
+      setIsModalOpen(true);
+      return;
+    }
+
+    const code = Math.floor(1000 + Math.random() * 9000).toString();
+    console.log('Kode yang digenerate:', code, 'untuk admin ID:', user.id); // log untuk debugging
+
+    const { error } = await supabase
+      .from('verification_codes')
+      .insert([{ code: code, admin_id: user.id }]);
+
+    if (error) {
+      console.error('Gagal menyimpan kode verifikasi:', error.message);
+      setModalMessage('Gagal membuat kode. Coba lagi.');
+      setVerificationCode('ERROR');
+    } else {
+      console.log('Kode verifikasi berhasil disimpan.');
+      setVerificationCode(code);
+      setModalMessage('Berikan kode ini kepada karyawan baru Anda untuk mendaftar.');
+    }
+    setIsModalOpen(true);
+  };
+
   const handleSearchChange = (e) => {
-    console.log('Nilai pencarian diubah:', e.target.value);
     setSearchTerm(e.target.value);
   };
 
-  // Fungsi untuk menangani klik nama karyawan
   const handleEmployeeClick = (employeeId) => {
-    console.log('Nama karyawan diklik. Navigasi ke detail halaman untuk ID:', employeeId);
     setSelectedEmployeeId(employeeId);
     setActivePage('detailKaryawan');
   };
@@ -66,7 +75,10 @@ export default function DataKaryawan({ setActivePage, setSelectedEmployeeId }) {
     <div className="p-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-gray-200">Data Karyawan</h1>
-        <button className="flex items-center space-x-2 rounded-lg bg-blue-600 px-4 py-2 text-sm text-white transition-colors duration-200 hover:bg-blue-700">
+        <button
+          onClick={handleAddEmployeeClick}
+          className="flex items-center space-x-2 rounded-lg bg-blue-600 px-4 py-2 text-sm text-white transition-colors duration-200 hover:bg-blue-700"
+        >
           <Plus size={16} />
           <span>Tambah Karyawan</span>
         </button>
@@ -83,8 +95,10 @@ export default function DataKaryawan({ setActivePage, setSelectedEmployeeId }) {
         <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
       </div>
 
+      {/* ... (Tabel karyawan tetap sama) ... */}
       <div className="mt-6 overflow-hidden rounded-lg bg-gray-800 shadow-lg">
         <table className="min-w-full divide-y divide-gray-700">
+          {/* ... thead ... */}
           <thead className="bg-gray-700">
             <tr>
               <th scope="col" className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-300">Nama</th>
@@ -126,6 +140,14 @@ export default function DataKaryawan({ setActivePage, setSelectedEmployeeId }) {
           </tbody>
         </table>
       </div>
+
+
+      <VerificationCodeModal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        code={verificationCode}
+        message={modalMessage}
+      />
     </div>
   );
 }

@@ -2,13 +2,14 @@ import React, { useState } from 'react';
 import { supabase } from '../supabaseClient';
 import { Eye, EyeOff } from 'lucide-react';
 
-// Register.jsx: Halaman untuk registrasi pengguna baru PWA
+// Register.jsx: Halaman untuk registrasi pengguna baru PWA dengan kode verifikasi
 export default function Register({ setActivePage }) {
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
   const [verifyPassword, setVerifyPassword] = useState('');
+  const [verificationCode, setVerificationCode] = useState(''); // State baru untuk kode verifikasi
   const [showPassword, setShowPassword] = useState(false);
   const [showVerifyPassword, setShowVerifyPassword] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -27,27 +28,64 @@ export default function Register({ setActivePage }) {
     setLoading(true);
     setError('');
     setSuccess('');
-    console.log('Mencoba mendaftar PWA dengan email:', email); // log untuk debugging
 
-    const { data, error } = await supabase.auth.signUp({
-      email: email,
-      password: password,
-      options: {
-        data: {
-          full_name: fullName,
-          phone: phone,
+    try {
+      // 1. Validasi kode verifikasi
+      console.log('Memvalidasi kode:', verificationCode); // log untuk debugging
+      const { data: codeData, error: codeError } = await supabase
+        .from('verification_codes')
+        .select('id, admin_id, is_used')
+        .eq('code', verificationCode)
+        .single();
+
+      if (codeError || !codeData) {
+        throw new Error('Kode verifikasi tidak valid.');
+      }
+      if (codeData.is_used) {
+        throw new Error('Kode verifikasi sudah digunakan.');
+      }
+
+      // 2. Jika kode valid, daftarkan pengguna baru
+      console.log('Kode valid. Mendaftarkan pengguna...'); // log untuk debugging
+      const { data: { user }, error: signUpError } = await supabase.auth.signUp({
+        email: email,
+        password: password,
+        options: {
+          data: {
+            full_name: fullName,
+            phone: phone,
+          },
         },
-      },
-    });
+      });
 
-    if (error) {
-      console.error('Error registrasi PWA:', error.message); // log untuk debugging
-      setError(error.message);
-    } else {
-      console.log('Registrasi PWA berhasil, cek email untuk verifikasi.'); // log untuk debugging
+      if (signUpError) throw signUpError;
+      if (!user) throw new Error('Gagal membuat pengguna.');
+
+      // 3. Hubungkan karyawan ke admin dan nonaktifkan kode
+      console.log('Pengguna terdaftar. Menghubungkan ke admin ID:', codeData.admin_id); // log untuk debugging
+      const { error: profileError } = await supabase
+        .from('profiles')
+        .update({ admin_id: codeData.admin_id })
+        .eq('id', user.id);
+
+      if (profileError) throw profileError;
+
+      const { error: updateCodeError } = await supabase
+        .from('verification_codes')
+        .update({ is_used: true, client_id: user.id })
+        .eq('id', codeData.id);
+
+      if (updateCodeError) throw updateCodeError;
+
+      console.log('Registrasi dan penautan berhasil.'); // log untuk debugging
       setSuccess('Registrasi berhasil! Silakan cek email Anda untuk verifikasi.');
+
+    } catch (err) {
+      console.error('Error selama proses registrasi:', err.message); // log untuk debugging
+      setError(err.message);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   return (
@@ -79,6 +117,15 @@ export default function Register({ setActivePage }) {
             placeholder="Nomer HP"
             value={phone}
             onChange={(e) => setPhone(e.target.value)}
+            className="w-full px-4 py-2 text-white bg-gray-700 border border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            required
+          />
+          {/* Input baru untuk Kode Verifikasi */}
+          <input
+            type="text"
+            placeholder="Kode Verifikasi"
+            value={verificationCode}
+            onChange={(e) => setVerificationCode(e.target.value)}
             className="w-full px-4 py-2 text-white bg-gray-700 border border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
             required
           />

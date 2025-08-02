@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { supabase } from '../supabaseClient';
 import { Eye, EyeOff } from 'lucide-react';
 
-// Register.jsx: Halaman untuk registrasi pengguna baru
+// Register.jsx: Halaman untuk registrasi admin baru
 export default function Register({ setActivePage }) {
   const [companyName, setCompanyName] = useState('');
   const [email, setEmail] = useState('');
@@ -14,9 +14,9 @@ export default function Register({ setActivePage }) {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
-  console.log('Halaman Register dirender.'); // log untuk debugging
+  console.log('Halaman Register Admin dirender.'); // log untuk debugging
 
-  // Fungsi untuk menangani proses registrasi
+  // Fungsi untuk menangani proses registrasi admin
   const handleRegister = async (e) => {
     e.preventDefault();
     if (password !== verifyPassword) {
@@ -26,23 +26,25 @@ export default function Register({ setActivePage }) {
     setLoading(true);
     setError('');
     setSuccess('');
-    console.log('Mencoba mendaftar dengan email:', email); // log untuk debugging
+    console.log('Mencoba mendaftar admin dengan email:', email); // log untuk debugging
 
+    // Memanggil signUp dengan menyertakan company_name di metadata
     const { data, error } = await supabase.auth.signUp({
       email: email,
       password: password,
       options: {
         data: {
+          // Data ini akan ditangkap oleh trigger 'handle_new_user' di Supabase
           company_name: companyName,
         },
       },
     });
 
     if (error) {
-      console.error('Error registrasi:', error.message); // log untuk debugging
+      console.error('Error registrasi admin:', error.message); // log untuk debugging
       setError(error.message);
     } else {
-      console.log('Registrasi berhasil, cek email untuk verifikasi.'); // log untuk debugging
+      console.log('Registrasi admin berhasil, cek email untuk verifikasi.'); // log untuk debugging
       setSuccess('Registrasi berhasil! Silakan cek email Anda untuk verifikasi.');
     }
     setLoading(false);
