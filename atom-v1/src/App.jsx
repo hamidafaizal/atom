@@ -1,41 +1,71 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { supabase } from './supabaseClient';
 import Sidebar from './components/Sidebar.jsx';
 import ErrorBoundary from './components/ErrorBoundary.jsx';
-import Dashboard from './pages/Dashboard.jsx';
-import DataKaryawan from './pages/DataKaryawan.jsx';
-import DetailKaryawan from './pages/DetailKaryawan.jsx';
-import ExportSlipGaji from './pages/ExportSlipGaji.jsx';
-import Notifikasi from './pages/Notifikasi.jsx';
-import Pengaturan from './pages/Pengaturan.jsx'; // Mengimpor komponen Pengaturan
+import AppRoutes from './routes/AppRoutes.jsx';
+import Login from './auth/Login.jsx';
+import Register from './auth/Register.jsx';
 
-// App.jsx: Komponen utama aplikasi dengan layout flexbox menggunakan Tailwind
+// App.jsx: Komponen utama yang mengatur state autentikasi dan layout
 function App() {
-  // State untuk melacak halaman yang aktif. Nilai default adalah 'dashboard'.
-  const [activePage, setActivePage] = useState('dashboard');
-  // State baru untuk melacak ID karyawan yang dipilih.
+  const [session, setSession] = useState(null);
+  const [activePage, setActivePage] = useState('login'); // Halaman default adalah login
   const [selectedEmployeeId, setSelectedEmployeeId] = useState(null);
-  
-  console.log('App dirender. Halaman aktif:', activePage); // log untuk debugging
+
+  useEffect(() => {
+    // Cek sesi yang ada saat komponen dimuat
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+      if (session) {
+        setActivePage('dashboard'); // Jika ada sesi, arahkan ke dashboard
+      }
+      console.log('Sesi awal:', session); // log untuk debugging
+    });
+
+    // Listener untuk perubahan state autentikasi (login/logout)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSession(session);
+      if (session) {
+        setActivePage('dashboard');
+      } else {
+        setActivePage('login');
+      }
+      console.log('Perubahan status autentikasi, sesi baru:', session); // log untuk debugging
+    });
+
+    // Cleanup listener saat komponen di-unmount
+    return () => subscription.unsubscribe();
+  }, []);
+
+  // Fungsi untuk merender konten berdasarkan status sesi dan halaman aktif
+  const renderContent = () => {
+    if (!session) {
+      if (activePage === 'register') {
+        return <Register setActivePage={setActivePage} />;
+      }
+      return <Login setActivePage={setActivePage} />;
+    }
+
+    // Jika sesi ada, tampilkan layout utama dengan rute privat
+    return (
+      <div className="pl-[70px] min-h-screen">
+        <Sidebar activePage={activePage} setActivePage={setActivePage} />
+        <div className="flex-1">
+          <AppRoutes
+            activePage={activePage}
+            setActivePage={setActivePage}
+            selectedEmployeeId={selectedEmployeeId}
+            setSelectedEmployeeId={setSelectedEmployeeId}
+          />
+        </div>
+      </div>
+    );
+  };
 
   return (
-    // Container utama dengan padding kiri untuk memberikan ruang bagi sidebar yang fixed
-    <div className="pl-[70px] min-h-screen">
-      {/* Sidebar: Menampilkan komponen sidebar di sisi kiri */}
-      <Sidebar activePage={activePage} setActivePage={setActivePage} />
-
-      {/* Membungkus konten utama dengan ErrorBoundary */}
-      <ErrorBoundary>
-        <div className="flex-1">
-          {/* Konten utama yang ditampilkan berdasarkan halaman yang aktif */}
-          {activePage === 'dashboard' && <Dashboard />}
-          {activePage === 'employees' && <DataKaryawan setActivePage={setActivePage} setSelectedEmployeeId={setSelectedEmployeeId} />}
-          {activePage === 'detailKaryawan' && <DetailKaryawan employeeId={selectedEmployeeId} setActivePage={setActivePage} />}
-          {activePage === 'export' && <ExportSlipGaji />}
-          {activePage === 'notifications' && <Notifikasi />}
-          {activePage === 'settings' && <Pengaturan />}
-        </div>
-      </ErrorBoundary>
-    </div>
+    <ErrorBoundary>
+      {renderContent()}
+    </ErrorBoundary>
   );
 }
 
