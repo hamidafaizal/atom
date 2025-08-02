@@ -1,14 +1,19 @@
 import React from 'react';
 import { LogOut } from 'lucide-react';
+import { supabase } from '../supabaseClient'; // Mengimpor client Supabase
 
 // Header.jsx: Komponen header untuk aplikasi PWA Absensi
 export default function Header() {
-  console.log('Header dirender.'); // log untuk debugging
+  console.log('Header PWA dirender.'); // log untuk debugging
 
-  const handleLogout = () => {
-    console.log('Tombol Keluar diklik.');
-    alert('Anda telah keluar!');
-    // Logika logout akan ditambahkan di sini
+  // Fungsi untuk menangani proses logout
+  const handleLogout = async () => {
+    console.log('Tombol Keluar PWA diklik.'); // log untuk debugging
+    const { error } = await supabase.auth.signOut();
+    if (error) {
+      console.error('Error saat logout PWA:', error.message); // log untuk debugging jika ada error
+    }
+    // Listener di App.jsx akan menangani perubahan state
   };
 
   return (

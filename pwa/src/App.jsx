@@ -1,42 +1,62 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { supabase } from './supabaseClient';
 import Header from './components/Header.jsx';
 import BottomMenu from './components/BottomMenu.jsx';
-import Beranda from './pages/Beranda.jsx';
-import Gaji from './pages/Gaji.jsx';
-import Jadwal from './pages/Jadwal.jsx';
-import Profile from './pages/Profile.jsx'; // Mengimpor halaman Profile
+import AppRoutes from './routes/AppRoutes.jsx';
+import Login from './auth/Login.jsx';
+import Register from './auth/Register.jsx';
 
-// App.jsx: Komponen utama PWA Absensi
+// App.jsx: Komponen utama PWA Absensi yang mengatur state autentikasi
 export default function App() {
-  const [activePage, setActivePage] = useState('beranda');
-  console.log('App dirender. Halaman aktif:', activePage); // log untuk debugging
+  const [session, setSession] = useState(null);
+  const [activePage, setActivePage] = useState('login'); // Default page
+  const [loading, setLoading] = useState(true); // State untuk loading awal
 
-  const renderPage = () => {
-    console.log('Merender halaman:', activePage); // log untuk debugging
+  useEffect(() => {
+    // Cek sesi yang ada saat komponen dimuat
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+      setActivePage(session ? 'beranda' : 'login');
+      setLoading(false);
+      console.log('Sesi awal PWA:', session); // log untuk debugging
+    });
+
+    // Listener untuk perubahan state autentikasi (login/logout)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSession(session);
+      if (session) {
+        setActivePage('beranda');
+      } else {
+        setActivePage('login');
+      }
+      console.log('Perubahan status autentikasi PWA, sesi baru:', session); // log untuk debugging
+    });
+
+    // Cleanup listener saat komponen di-unmount
+    return () => subscription.unsubscribe();
+  }, []);
+
+  // Tampilkan loading screen jika sesi masih diperiksa
+  if (loading) {
+    return <div className="flex items-center justify-center h-screen w-screen bg-gray-900 text-white">Loading...</div>;
+  }
+
+  // Render konten berdasarkan status sesi
+  if (!session) {
     switch (activePage) {
-      case 'beranda':
-        return <Beranda />;
-      case 'gaji':
-        return <Gaji />;
-      case 'jadwal':
-        return <Jadwal />;
-      case 'profil':
-        return <Profile />;
+      case 'register':
+        return <Register setActivePage={setActivePage} />;
       default:
-        return (
-          <div className="flex-1 flex items-center justify-center">
-            <h1 className="text-white text-3xl">Halaman {activePage}</h1>
-          </div>
-        );
+        return <Login setActivePage={setActivePage} />;
     }
-  };
+  }
 
+  // Tampilkan aplikasi utama jika sudah login
   return (
     <div className="flex flex-col h-screen w-screen">
       <Header />
-      {/* Konten utama aplikasi yang ditampilkan berdasarkan halaman yang aktif */}
       <div className="flex-1 overflow-y-auto">
-        {renderPage()}
+        <AppRoutes activePage={activePage} />
       </div>
       <BottomMenu activePage={activePage} setActivePage={setActivePage} />
     </div>
