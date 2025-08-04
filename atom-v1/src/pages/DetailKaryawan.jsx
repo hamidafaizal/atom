@@ -5,7 +5,9 @@ import { supabase } from '../supabaseClient'; // Import supabase client
 // DetailKaryawan.jsx: Komponen halaman Detail Karyawan dengan fungsionalitas edit
 export default function DetailKaryawan({ employeeId, setActivePage }) {
   const [employee, setEmployee] = useState(null);
+  const [attendanceRecords, setAttendanceRecords] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [attendanceLoading, setAttendanceLoading] = useState(true);
   const [isEditing, setIsEditing] = useState(false);
   const [formData, setFormData] = useState({
     full_name: '',
@@ -14,39 +16,56 @@ export default function DetailKaryawan({ employeeId, setActivePage }) {
   });
   const [message, setMessage] = useState('');
 
-  // Mengambil data detail karyawan saat komponen dimuat atau employeeId berubah
+  // Mengambil data detail karyawan dan riwayat absensi
   useEffect(() => {
-    const fetchEmployeeDetails = async () => {
+    const fetchAllData = async () => {
       if (!employeeId) {
         setLoading(false);
+        setAttendanceLoading(false);
         return;
       }
       setLoading(true);
-      console.log(`Mulai mengambil detail untuk karyawan ID: ${employeeId}`); // log untuk debugging
+      setAttendanceLoading(true);
+      console.log(`Mulai mengambil data untuk karyawan ID: ${employeeId}`);
 
-      const { data, error } = await supabase
+      // Ambil detail karyawan
+      const { data: employeeData, error: employeeError } = await supabase
         .from('employees')
         .select('*')
         .eq('id', employeeId)
         .single();
 
-      if (error) {
-        console.error('Error mengambil detail karyawan:', error.message);
+      if (employeeError) {
+        console.error('Error mengambil detail karyawan:', employeeError.message);
         setEmployee(null);
       } else {
-        console.log('Detail karyawan berhasil diambil:', data);
-        setEmployee(data);
-        // Inisialisasi form dengan data yang ada
+        console.log('Detail karyawan berhasil diambil:', employeeData);
+        setEmployee(employeeData);
         setFormData({
-          full_name: data.full_name || '',
-          position: data.position || '',
-          phone_number: data.phone_number || ''
+          full_name: employeeData.full_name || '',
+          position: employeeData.position || '',
+          phone_number: employeeData.phone_number || ''
         });
       }
       setLoading(false);
+
+      // Ambil riwayat absensi
+      const { data: attendanceData, error: attendanceError } = await supabase
+        .from('attendance')
+        .select('*')
+        .eq('employee_id', employeeId)
+        .order('check_in_time', { ascending: false });
+      
+      if (attendanceError) {
+        console.error('Error mengambil riwayat absensi:', attendanceError.message);
+      } else {
+        console.log('Riwayat absensi berhasil diambil:', attendanceData);
+        setAttendanceRecords(attendanceData);
+      }
+      setAttendanceLoading(false);
     };
 
-    fetchEmployeeDetails();
+    fetchAllData();
   }, [employeeId]);
 
   // Menangani perubahan pada input form
@@ -84,17 +103,26 @@ export default function DetailKaryawan({ employeeId, setActivePage }) {
     }
   };
 
-  // Data dummy absensi
-  const attendanceRecords = [
-    { date: '2024-08-01', checkIn: '08:00', checkOut: '17:00', status: 'Valid' },
-    { date: '2024-08-02', checkIn: '08:05', checkOut: '17:05', status: 'Invalid' },
-  ];
-
   const getInitials = (name) => {
     if (!name) return '?';
     const names = name.split(' ');
     const initials = names.map(n => n[0]).join('');
     return initials.slice(0, 2).toUpperCase();
+  };
+  
+  // Fungsi untuk memformat tanggal dan waktu
+  const formatDate = (isoString) => {
+    if (!isoString) return 'N/A';
+    return new Intl.DateTimeFormat('id-ID', {
+      day: '2-digit', month: '2-digit', year: 'numeric'
+    }).format(new Date(isoString));
+  };
+  
+  const formatTime = (isoString) => {
+    if (!isoString) return '--:--';
+    return new Intl.DateTimeFormat('id-ID', {
+      hour: '2-digit', minute: '2-digit', hour12: false
+    }).format(new Date(isoString));
   };
 
   if (loading) {
@@ -188,18 +216,24 @@ export default function DetailKaryawan({ employeeId, setActivePage }) {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-700 bg-gray-800">
-              {attendanceRecords.map((record, index) => (
-                <tr key={index} className="hover:bg-gray-700 transition-colors duration-200">
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-white">{record.date}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-400">{record.checkIn}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-400">{record.checkOut}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                    <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${record.status === 'Valid' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
-                      {record.status}
-                    </span>
-                  </td>
-                </tr>
-              ))}
+              {attendanceLoading ? (
+                <tr><td colSpan="4" className="text-center py-4 text-gray-400">Memuat riwayat absensi...</td></tr>
+              ) : attendanceRecords.length > 0 ? (
+                attendanceRecords.map((record) => (
+                  <tr key={record.id} className="hover:bg-gray-700 transition-colors duration-200">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-white">{formatDate(record.check_in_time)}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-400">{formatTime(record.check_in_time)}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-400">{formatTime(record.check_out_time)}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                      <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">
+                        Hadir
+                      </span>
+                    </td>
+                  </tr>
+                ))
+              ) : (
+                <tr><td colSpan="4" className="text-center py-4 text-gray-400">Tidak ada riwayat absensi.</td></tr>
+              )}
             </tbody>
           </table>
         </div>
