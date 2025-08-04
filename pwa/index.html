@@ -1,29 +1,18 @@
-<!DOCTYPE html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Absensi PWA</title>
-    <!-- Menambahkan manifest untuk PWA -->
-    <link rel="manifest" href="/manifest.json" />
-  </head>
-  <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.jsx"></script>
+    <!DOCTYPE html>
+    <html lang="en">
+      <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Absensi PWA</title>
+        <!-- Menambahkan manifest untuk PWA (plugin akan mengaturnya) -->
+        <link rel="manifest" href="/manifest.json" />
+      </head>
+      <body>
+        <div id="root"></div>
+        <script type="module" src="/src/main.jsx"></script>
+        
+        <!-- HAPUS BAGIAN INI -->
+        <!-- Skrip pendaftaran service worker manual telah dihapus -->
+      </body>
+    </html>
     
-    <!-- Mendaftarkan Service Worker -->
-    <script>
-      if ('serviceWorker' in navigator) {
-        window.addEventListener('load', () => {
-          navigator.serviceWorker.register('/service-worker.js')
-            .then((registration) => {
-              console.log('Service Worker berhasil didaftarkan. Scope:', registration.scope);
-            })
-            .catch((error) => {
-              console.error('Pendaftaran Service Worker gagal:', error);
-            });
-        });
-      }
-    </script>
-  </body>
-</html>
