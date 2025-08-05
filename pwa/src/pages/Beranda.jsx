@@ -14,14 +14,30 @@ export default function Beranda() {
     hasClockedIn: false,
     attendanceId: null,
   });
+  const [employeeProfile, setEmployeeProfile] = useState(null); // State untuk menyimpan profil karyawan
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Fungsi untuk memeriksa status absensi hari ini
-  const checkTodaysAttendance = async () => {
-    console.log('Memeriksa status absensi hari ini.'); // log untuk debugging
+  // Fungsi untuk memeriksa status absensi hari ini dan mengambil profil karyawan
+  const initializeComponent = async () => {
+    console.log('Inisialisasi komponen Beranda.'); // log untuk debugging
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
 
+    // 1. Ambil profil karyawan untuk mendapatkan admin_id
+    const { data: profile, error: profileError } = await supabase
+      .from('employees')
+      .select('admin_id')
+      .eq('id', user.id)
+      .single();
+    
+    if (profileError) {
+      console.error('Error mengambil profil karyawan:', profileError.message);
+    } else {
+      setEmployeeProfile(profile);
+      console.log('Profil karyawan (termasuk admin_id) berhasil diambil:', profile);
+    }
+
+    // 2. Periksa status absensi hari ini
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const tomorrow = new Date(today);
@@ -41,23 +57,20 @@ export default function Beranda() {
       console.error('Error memeriksa absensi:', error.message);
     } else if (data) {
       if (data.check_out_time === null) {
-        console.log('Sudah absen masuk, belum absen keluar.');
         setAttendanceStatus({ hasClockedIn: true, attendanceId: data.id });
       } else {
-        console.log('Sudah absen masuk dan keluar hari ini.');
         setAttendanceStatus({ hasClockedIn: false, attendanceId: null });
       }
     } else {
-        console.log('Belum ada absensi hari ini.');
         setAttendanceStatus({ hasClockedIn: false, attendanceId: null });
     }
   };
 
   useEffect(() => {
     const timerId = setInterval(() => setTime(new Date()), 1000);
-    console.log('Jam digital dimulai.');
-    checkTodaysAttendance();
+    initializeComponent();
 
+    // --- Logika Lokasi ---
     const officeLat = -7.876305;
     const officeLon = 111.480648;
     const radiusMeters = 100;
@@ -79,10 +92,7 @@ export default function Beranda() {
     const locationWatcher = navigator.geolocation.watchPosition(
       (position) => {
         const { latitude, longitude } = position.coords;
-        console.log(`Lokasi perangkat: ${latitude}, ${longitude}`);
         const distance = getDistanceFromLatLonInMeters(latitude, longitude, officeLat, officeLon);
-        console.log(`Jarak dari kantor: ${distance.toFixed(2)} meter`);
-
         if (distance <= radiusMeters) {
           setLocationStatus({ valid: true, text: 'Anda berada di zona kantor.', coords: { latitude, longitude } });
         } else {
@@ -90,7 +100,6 @@ export default function Beranda() {
         }
       },
       (error) => {
-        console.error('Error mendapatkan lokasi:', error.message);
         let text = 'Gagal mendapatkan lokasi.';
         if (error.code === 1) { text = 'Izin lokasi ditolak.'; }
         setLocationStatus({ valid: false, text: text, coords: null });
@@ -101,7 +110,6 @@ export default function Beranda() {
     return () => {
       clearInterval(timerId);
       navigator.geolocation.clearWatch(locationWatcher);
-      console.log('Jam digital dan location watcher dihentikan.');
     };
   }, []);
 
@@ -109,33 +117,27 @@ export default function Beranda() {
   const getRoundedTime = (direction) => {
     const now = new Date();
     const minutes = now.getMinutes();
-    
     if (direction === 'in') {
-      // Pembulatan maju untuk absen masuk
       const roundedMinutes = Math.ceil(minutes / 10) * 10;
       now.setMinutes(roundedMinutes, 0, 0);
-    } else { // direction === 'out'
-      // Pembulatan mundur untuk absen keluar
+    } else {
       const roundedMinutes = Math.floor(minutes / 10) * 10;
       now.setMinutes(roundedMinutes, 0, 0);
     }
-    
-    console.log(`Waktu asli: ${new Date().toLocaleTimeString()}, Waktu dibulatkan: ${now.toLocaleTimeString()}`); // log untuk debugging
     return now.toISOString();
   };
 
   const handleAttendance = async () => {
     setIsSubmitting(true);
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-        alert('Gagal mendapatkan sesi pengguna.');
+    if (!user || !employeeProfile) {
+        alert('Gagal mendapatkan data pengguna atau profil. Coba muat ulang halaman.');
         setIsSubmitting(false);
         return;
     }
 
     if (attendanceStatus.hasClockedIn) {
       // --- Logika Absen Keluar ---
-      console.log('Melakukan absen keluar untuk ID:', attendanceStatus.attendanceId);
       const checkOutTime = getRoundedTime('out');
       const { error } = await supabase
         .from('attendance')
@@ -153,12 +155,12 @@ export default function Beranda() {
       }
     } else {
       // --- Logika Absen Masuk ---
-      console.log('Melakukan absen masuk.');
       const checkInTime = getRoundedTime('in');
       const { data, error } = await supabase
         .from('attendance')
         .insert({
             employee_id: user.id,
+            admin_id: employeeProfile.admin_id, // [FIX] Menambahkan admin_id
             check_in_time: checkInTime,
             check_in_location: `POINT(${locationStatus.coords.longitude} ${locationStatus.coords.latitude})`
         })
