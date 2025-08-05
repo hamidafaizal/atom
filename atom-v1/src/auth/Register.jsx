@@ -28,14 +28,15 @@ export default function Register({ setActivePage }) {
     setSuccess('');
     console.log('Mencoba mendaftar admin dengan email:', email); // log untuk debugging
 
-    // Memanggil signUp dengan menyertakan company_name di metadata
+    // Memanggil signUp dengan menyertakan nama perusahaan di metadata
     const { data, error } = await supabase.auth.signUp({
       email: email,
       password: password,
       options: {
         data: {
-          // Data ini akan ditangkap oleh trigger 'handle_new_user' di Supabase
-          company_name: companyName,
+          // [FIX] Menggunakan 'display_name' sebagai kunci untuk nama perusahaan
+          // Ini akan menyimpannya di user_metadata dan bisa diakses nanti
+          display_name: companyName,
         },
       },
     });
