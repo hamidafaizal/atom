@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
-import { User, Bell, Shield, Settings as SettingsIcon, DollarSign } from 'lucide-react';
+import { User, Bell, Shield, Settings as SettingsIcon, DollarSign, CalendarDays } from 'lucide-react'; // Menambahkan CalendarDays
 import Akun from './pengaturan/Akun.jsx';
 import NotifikasiPengaturan from './pengaturan/NotifikasiPengaturan.jsx';
 import ModelPenggajian from './pengaturan/ModelPenggajian.jsx';
+import PengaturanHariLibur from './pengaturan/PengaturanHariLibur.jsx'; // Import komponen baru
 
 // Pengaturan.jsx: Halaman utama pengaturan yang mengelola sub-menu.
 export default function Pengaturan() {
@@ -13,6 +14,7 @@ export default function Pengaturan() {
   const settingsMenu = [
     { name: 'Akun', key: 'akun', icon: User },
     { name: 'Model Penggajian', key: 'modelGaji', icon: DollarSign },
+    { name: 'Hari Libur', key: 'hariLibur', icon: CalendarDays }, // Menambahkan menu Hari Libur
     { name: 'Notifikasi', key: 'notifikasi', icon: Bell },
     { name: 'Keamanan', key: 'keamanan', icon: Shield },
     { name: 'Umum', key: 'umum', icon: SettingsIcon },
@@ -27,6 +29,8 @@ export default function Pengaturan() {
         return <Akun />;
       case 'modelGaji':
         return <ModelPenggajian />;
+      case 'hariLibur': // Menambahkan case untuk render komponen Hari Libur
+        return <PengaturanHariLibur />;
       case 'notifikasi':
         return <NotifikasiPengaturan />;
       default:

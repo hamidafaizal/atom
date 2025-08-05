@@ -34,16 +34,17 @@ export default function Dashboard() {
       todayStart.setHours(0, 0, 0, 0);
 
       // --- Ambil semua data yang diperlukan secara paralel ---
-      const [employeeData, attendanceData, todayAttendanceData] = await Promise.all([
+      const [employeeData, attendanceData, todayAttendanceData, salaryModelsData] = await Promise.all([
         supabase.from('employees').select('id, full_name, position, salary_model_id').eq('admin_id', user.id),
-        // [FIX] Menambahkan kembali filter admin_id yang benar
         supabase.from('attendance').select('employee_id, check_in_time, check_out_time').eq('admin_id', user.id).gte('check_in_time', startDate).lte('check_in_time', new Date(endDate).toISOString().replace('T00:00:00.000Z', 'T23:59:59.999Z')),
-        // [FIX] Menambahkan kembali filter admin_id yang benar
-        supabase.from('attendance').select('*, employees(full_name)').eq('admin_id', user.id).gte('check_in_time', todayStart.toISOString())
+        supabase.from('attendance').select('*, employees(full_name)').eq('admin_id', user.id).gte('check_in_time', todayStart.toISOString()),
+        supabase.from('salary_models').select('id, salary_type').eq('admin_id', user.id) // Ambil tipe dari semua model gaji
       ]);
 
       // --- Proses Data & Update State ---
-      const employeeCount = employeeData.data?.length || 0;
+      const employees = employeeData.data || [];
+      const salaryModels = salaryModelsData.data || [];
+      const employeeCount = employees.length;
       
       const presentToday = todayAttendanceData.data?.length || 0;
       const activities = [];
@@ -82,13 +83,32 @@ export default function Dashboard() {
       });
       setWeeklyAttendanceData(Object.values(weeklyData));
       
-      const salaryPromises = employeeData.data.map(async (employee) => {
-        if (!employee.salary_model_id) return { ...employee, salary: 0 };
-        const { data: salary } = await supabase.rpc('calculate_hourly_salary', {
+      // [FIX] Logika untuk memanggil kalkulator yang sesuai
+      const salaryPromises = employees.map(async (employee) => {
+        const model = salaryModels.find(m => m.id === employee.salary_model_id);
+        if (!model) return { ...employee, salary: 0 };
+
+        let rpcName = '';
+        if (model.salary_type === 'bulanan') {
+          rpcName = 'calculate_monthly_salary';
+        } else if (model.salary_type === 'perJam') {
+          rpcName = 'calculate_hourly_salary';
+        } else {
+          return { ...employee, salary: 0 };
+        }
+
+        const { data: salary, error } = await supabase.rpc(rpcName, {
           p_employee_id: employee.id, p_start_date: startDate, p_end_date: endDate
         });
+
+        if (error) {
+          console.error(`Error menghitung gaji (${rpcName}) untuk ${employee.full_name}:`, error);
+          return { ...employee, salary: 0 };
+        }
+        
         return { ...employee, salary: salary || 0 };
       });
+
       const calculatedSalaries = await Promise.all(salaryPromises);
       setEmployeeSalaries(calculatedSalaries);
       const totalSalary = calculatedSalaries.reduce((sum, s) => sum + s.salary, 0);
