@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { Users, DollarSign, Clock, CheckCircle, UserRoundCheck, Clock3 } from 'lucide-react';
+import { Users, DollarSign, Clock, CheckCircle, CalendarDays, UserRoundCheck, Clock3 } from 'lucide-react';
 import { BarChart as RechartsBarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { supabase } from '../supabaseClient';
 
 // Dashboard.jsx: Komponen halaman Dashboard yang menampilkan metrik utama dan data tambahan.
 export default function Dashboard() {
-  const [startDate, setStartDate] = useState(new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().slice(0, 10));
-  const [endDate, setEndDate] = useState(new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).toISOString().slice(0, 10));
+  // [FIX] Mengganti state tanggal menjadi satu state untuk bulan yang dipilih
+  const [selectedMonth, setSelectedMonth] = useState(new Date().toISOString().slice(0, 7));
   
   const [stats, setStats] = useState({
     employeeCount: 0,
@@ -22,6 +22,12 @@ export default function Dashboard() {
   useEffect(() => {
     const fetchDashboardData = async () => {
       setLoading(true);
+      
+      // [FIX] Menentukan rentang tanggal berdasarkan bulan yang dipilih
+      const date = new Date(selectedMonth);
+      const startDate = new Date(date.getFullYear(), date.getMonth(), 1).toISOString().slice(0, 10);
+      const endDate = new Date(date.getFullYear(), date.getMonth() + 1, 0).toISOString().slice(0, 10);
+      
       console.log(`Mengambil data dashboard untuk periode: ${startDate} hingga ${endDate}`);
 
       const { data: { user } } = await supabase.auth.getUser();
@@ -33,15 +39,13 @@ export default function Dashboard() {
       const todayStart = new Date();
       todayStart.setHours(0, 0, 0, 0);
 
-      // --- Ambil semua data yang diperlukan secara paralel ---
       const [employeeData, attendanceData, todayAttendanceData, salaryModelsData] = await Promise.all([
         supabase.from('employees').select('id, full_name, position, salary_model_id').eq('admin_id', user.id),
         supabase.from('attendance').select('employee_id, check_in_time, check_out_time').eq('admin_id', user.id).gte('check_in_time', startDate).lte('check_in_time', new Date(endDate).toISOString().replace('T00:00:00.000Z', 'T23:59:59.999Z')),
         supabase.from('attendance').select('*, employees(full_name)').eq('admin_id', user.id).gte('check_in_time', todayStart.toISOString()),
-        supabase.from('salary_models').select('id, salary_type').eq('admin_id', user.id) // Ambil tipe dari semua model gaji
+        supabase.from('salary_models').select('id, salary_type').eq('admin_id', user.id)
       ]);
 
-      // --- Proses Data & Update State ---
       const employees = employeeData.data || [];
       const salaryModels = salaryModelsData.data || [];
       const employeeCount = employees.length;
@@ -83,7 +87,6 @@ export default function Dashboard() {
       });
       setWeeklyAttendanceData(Object.values(weeklyData));
       
-      // [FIX] Logika untuk memanggil kalkulator yang sesuai
       const salaryPromises = employees.map(async (employee) => {
         const model = salaryModels.find(m => m.id === employee.salary_model_id);
         if (!model) return { ...employee, salary: 0 };
@@ -117,8 +120,10 @@ export default function Dashboard() {
       setLoading(false);
     };
 
-    fetchDashboardData();
-  }, [startDate, endDate]);
+    if (selectedMonth) { // [FIX] Mengubah dependensi ke selectedMonth
+      fetchDashboardData();
+    }
+  }, [selectedMonth]); // [FIX] Mengubah dependensi ke selectedMonth
 
   const formatCurrency = (value) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(value || 0);
 
@@ -126,10 +131,15 @@ export default function Dashboard() {
     <div className="p-6">
       <div className="flex items-center justify-between rounded-lg bg-gray-800 p-4 shadow-lg mb-6">
         <h1 className="text-2xl font-bold text-gray-200">Dashboard</h1>
+        {/* [FIX] Mengganti dua input tanggal menjadi satu input bulan */}
         <div className="flex items-center space-x-2">
-          <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="rounded-md bg-gray-700 py-1 px-2 text-sm text-white" />
-          <span>-</span>
-          <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="rounded-md bg-gray-700 py-1 px-2 text-sm text-white" />
+          <CalendarDays size={20} className="text-gray-400" />
+          <input 
+            type="month" 
+            value={selectedMonth} 
+            onChange={(e) => setSelectedMonth(e.target.value)} 
+            className="rounded-md bg-gray-700 py-1 px-2 text-sm text-white" 
+          />
         </div>
       </div>
 
