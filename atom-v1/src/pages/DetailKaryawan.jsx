@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ChevronLeft, Edit, Plus, Save, X } from 'lucide-react';
+import { ChevronLeft, Edit, Plus, Save, X, Landmark, Hash, UserSquare } from 'lucide-react';
 import { supabase } from '../supabaseClient';
 import AttendanceModal from '../modal/AttendanceModal.jsx';
 
@@ -7,7 +7,7 @@ import AttendanceModal from '../modal/AttendanceModal.jsx';
 export default function DetailKaryawan({ employeeId, setActivePage }) {
   const [employee, setEmployee] = useState(null);
   const [attendanceRecords, setAttendanceRecords] = useState([]);
-  const [salaryModels, setSalaryModels] = useState([]); // State untuk daftar model gaji
+  const [salaryModels, setSalaryModels] = useState([]);
   const [loading, setLoading] = useState(true);
   const [attendanceLoading, setAttendanceLoading] = useState(true);
   const [isEditing, setIsEditing] = useState(false);
@@ -17,7 +17,10 @@ export default function DetailKaryawan({ employeeId, setActivePage }) {
     full_name: '',
     position: '',
     phone_number: '',
-    salary_model_id: '', // Menambahkan salary_model_id ke form
+    salary_model_id: '',
+    bank_name: '',
+    account_number: '',
+    account_holder_name: '',
   });
   const [message, setMessage] = useState('');
 
@@ -32,16 +35,9 @@ export default function DetailKaryawan({ employeeId, setActivePage }) {
     setAttendanceLoading(true);
     console.log(`Mulai mengambil data untuk karyawan ID: ${employeeId}`);
 
-    // Ambil detail karyawan dengan join ke tabel salary_models
     const { data: employeeData, error: employeeError } = await supabase
       .from('employees')
-      .select(`
-        *,
-        salary_models (
-          id,
-          model_name
-        )
-      `)
+      .select(`*, salary_models (id, model_name)`)
       .eq('id', employeeId)
       .single();
 
@@ -56,11 +52,13 @@ export default function DetailKaryawan({ employeeId, setActivePage }) {
         position: employeeData.position || '',
         phone_number: employeeData.phone_number || '',
         salary_model_id: employeeData.salary_model_id || '',
+        bank_name: employeeData.bank_name || '',
+        account_number: employeeData.account_number || '',
+        account_holder_name: employeeData.account_holder_name || '',
       });
     }
     setLoading(false);
     
-    // Ambil semua model gaji yang tersedia untuk admin
     const { data: { user } } = await supabase.auth.getUser();
     if (user) {
         const { data: modelsData, error: modelsError } = await supabase
@@ -74,7 +72,6 @@ export default function DetailKaryawan({ employeeId, setActivePage }) {
         }
     }
 
-    // Ambil riwayat absensi
     const { data: attendanceData, error: attendanceError } = await supabase
       .from('attendance')
       .select('*')
@@ -84,7 +81,6 @@ export default function DetailKaryawan({ employeeId, setActivePage }) {
     if (attendanceError) {
       console.error('Error mengambil riwayat absensi:', attendanceError.message);
     } else {
-      console.log('Riwayat absensi berhasil diambil:', attendanceData);
       setAttendanceRecords(attendanceData);
     }
     setAttendanceLoading(false);
@@ -118,16 +114,13 @@ export default function DetailKaryawan({ employeeId, setActivePage }) {
         full_name: formData.full_name,
         position: formData.position,
         phone_number: formData.phone_number,
-        salary_model_id: formData.salary_model_id || null, // Simpan null jika tidak ada yang dipilih
+        salary_model_id: formData.salary_model_id || null,
+        bank_name: formData.bank_name,
+        account_number: formData.account_number,
+        account_holder_name: formData.account_holder_name,
       })
       .eq('id', employeeId)
-      .select(`
-        *,
-        salary_models (
-          id,
-          model_name
-        )
-      `)
+      .select(`*, salary_models (id, model_name)`)
       .single();
 
     if (error) {
@@ -176,7 +169,7 @@ export default function DetailKaryawan({ employeeId, setActivePage }) {
       <form onSubmit={handleUpdate}>
         <div className="bg-gray-800 p-6 rounded-lg shadow-lg mb-6">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-bold text-gray-200">Informasi Pribadi</h3>
+            <h3 className="text-lg font-bold text-gray-200">Informasi Karyawan</h3>
             {!isEditing ? (
               <button type="button" onClick={() => setIsEditing(true)} className="flex items-center space-x-2 text-blue-500 hover:text-blue-400">
                 <Edit size={18} /><span>Edit Data</span>
@@ -184,7 +177,7 @@ export default function DetailKaryawan({ employeeId, setActivePage }) {
             ) : (
               <div className="flex items-center space-x-2">
                 <button type="submit" className="flex items-center space-x-2 text-green-500 hover:text-green-400">
-                  <Save size={18} /><span>Simpan</span>
+                  <Save size={18} /><span>Simpan Semua Perubahan</span>
                 </button>
                 <button type="button" onClick={() => setIsEditing(false)} className="flex items-center space-x-2 text-red-500 hover:text-red-400">
                   <X size={18} /><span>Batal</span>
@@ -227,12 +220,28 @@ export default function DetailKaryawan({ employeeId, setActivePage }) {
                   <p className="text-white font-semibold">{employee.salary_models?.model_name || 'Belum diatur'}</p>
                 )}
               </div>
+              <div className="md:col-span-2 border-t border-gray-700 pt-4 mt-2">
+                <h4 className="text-md font-semibold text-gray-200 mb-2">Informasi Rekening</h4>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div>
+                    <label className="text-sm text-gray-400">Nama Bank</label>
+                    {isEditing ? <input type="text" name="bank_name" value={formData.bank_name} onChange={handleInputChange} className="w-full mt-1 rounded-md bg-gray-700 py-2 px-3 text-white" /> : <p className="text-white font-semibold">{employee.bank_name || 'Belum diatur'}</p>}
+                  </div>
+                  <div>
+                    <label className="text-sm text-gray-400">Nomor Rekening</label>
+                    {isEditing ? <input type="text" name="account_number" value={formData.account_number} onChange={handleInputChange} className="w-full mt-1 rounded-md bg-gray-700 py-2 px-3 text-white" /> : <p className="text-white font-semibold">{employee.account_number || 'Belum diatur'}</p>}
+                  </div>
+                  <div>
+                    <label className="text-sm text-gray-400">Nama Pemilik Rekening</label>
+                    {isEditing ? <input type="text" name="account_holder_name" value={formData.account_holder_name} onChange={handleInputChange} className="w-full mt-1 rounded-md bg-gray-700 py-2 px-3 text-white" /> : <p className="text-white font-semibold">{employee.account_holder_name || 'Belum diatur'}</p>}
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </div>
       </form>
 
-      {/* Tabel Riwayat Absensi */}
       <div className="bg-gray-800 p-6 rounded-lg shadow-lg">
         <div className="flex items-center justify-between mb-4 border-b border-gray-700 pb-2">
             <h3 className="text-lg font-bold text-gray-200">Riwayat Absensi</h3>
