@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { LogIn, LogOut, MapPin } from 'lucide-react';
-import { supabase } from '../supabaseClient'; // Import Supabase client
+import { supabase } from '../supabaseClient';
 
 // Beranda.jsx: Halaman utama yang menampilkan jam digital, lokasi, dan tombol absen
 export default function Beranda() {
@@ -14,19 +14,19 @@ export default function Beranda() {
     hasClockedIn: false,
     attendanceId: null,
   });
-  const [employeeProfile, setEmployeeProfile] = useState(null); // State untuk menyimpan profil karyawan
+  const [employeeProfile, setEmployeeProfile] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Fungsi untuk memeriksa status absensi hari ini dan mengambil profil karyawan
+  // Fungsi untuk inisialisasi komponen
   const initializeComponent = async () => {
-    console.log('Inisialisasi komponen Beranda.'); // log untuk debugging
+    console.log('Inisialisasi komponen Beranda.');
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
 
-    // 1. Ambil profil karyawan untuk mendapatkan admin_id
+    // Ambil profil karyawan untuk mendapatkan admin_id dan nama
     const { data: profile, error: profileError } = await supabase
       .from('employees')
-      .select('admin_id')
+      .select('admin_id, full_name')
       .eq('id', user.id)
       .single();
     
@@ -34,10 +34,10 @@ export default function Beranda() {
       console.error('Error mengambil profil karyawan:', profileError.message);
     } else {
       setEmployeeProfile(profile);
-      console.log('Profil karyawan (termasuk admin_id) berhasil diambil:', profile);
+      console.log('Profil karyawan berhasil diambil:', profile);
     }
 
-    // 2. Periksa status absensi hari ini
+    // Periksa status absensi hari ini
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const tomorrow = new Date(today);
@@ -53,7 +53,7 @@ export default function Beranda() {
       .limit(1)
       .single();
 
-    if (error && error.code !== 'PGRST116') { // PGRST116 = no rows found
+    if (error && error.code !== 'PGRST116') {
       console.error('Error memeriksa absensi:', error.message);
     } else if (data) {
       if (data.check_out_time === null) {
@@ -70,7 +70,7 @@ export default function Beranda() {
     const timerId = setInterval(() => setTime(new Date()), 1000);
     initializeComponent();
 
-    // --- Logika Lokasi ---
+    // Logika Lokasi
     const officeLat = -7.876305;
     const officeLon = 111.480648;
     const radiusMeters = 100;
@@ -113,7 +113,6 @@ export default function Beranda() {
     };
   }, []);
 
-  // Fungsi pembulatan waktu
   const getRoundedTime = (direction) => {
     const now = new Date();
     const minutes = now.getMinutes();
@@ -137,42 +136,13 @@ export default function Beranda() {
     }
 
     if (attendanceStatus.hasClockedIn) {
-      // --- Logika Absen Keluar ---
       const checkOutTime = getRoundedTime('out');
-      const { error } = await supabase
-        .from('attendance')
-        .update({ 
-            check_out_time: checkOutTime,
-            check_out_location: `POINT(${locationStatus.coords.longitude} ${locationStatus.coords.latitude})`
-        })
-        .eq('id', attendanceStatus.attendanceId);
-
-      if (error) {
-        alert(`Gagal absen keluar: ${error.message}`);
-      } else {
-        alert('Berhasil absen keluar!');
-        setAttendanceStatus({ hasClockedIn: false, attendanceId: null });
-      }
+      const { error } = await supabase.from('attendance').update({ check_out_time: checkOutTime, check_out_location: `POINT(${locationStatus.coords.longitude} ${locationStatus.coords.latitude})` }).eq('id', attendanceStatus.attendanceId);
+      if (error) { alert(`Gagal absen keluar: ${error.message}`); } else { alert('Berhasil absen keluar!'); setAttendanceStatus({ hasClockedIn: false, attendanceId: null }); }
     } else {
-      // --- Logika Absen Masuk ---
       const checkInTime = getRoundedTime('in');
-      const { data, error } = await supabase
-        .from('attendance')
-        .insert({
-            employee_id: user.id,
-            admin_id: employeeProfile.admin_id, // [FIX] Menambahkan admin_id
-            check_in_time: checkInTime,
-            check_in_location: `POINT(${locationStatus.coords.longitude} ${locationStatus.coords.latitude})`
-        })
-        .select('id')
-        .single();
-      
-      if (error) {
-        alert(`Gagal absen masuk: ${error.message}`);
-      } else {
-        alert('Berhasil absen masuk!');
-        setAttendanceStatus({ hasClockedIn: true, attendanceId: data.id });
-      }
+      const { data, error } = await supabase.from('attendance').insert({ employee_id: user.id, admin_id: employeeProfile.admin_id, check_in_time: checkInTime, check_in_location: `POINT(${locationStatus.coords.longitude} ${locationStatus.coords.latitude})` }).select('id').single();
+      if (error) { alert(`Gagal absen masuk: ${error.message}`); } else { alert('Berhasil absen masuk!'); setAttendanceStatus({ hasClockedIn: true, attendanceId: data.id }); }
     }
     setIsSubmitting(false);
   };
@@ -188,21 +158,15 @@ export default function Beranda() {
 
   return (
     <div className="flex h-full w-full flex-col items-center justify-center p-6">
+      <h2 className="text-2xl text-gray-300 mb-4">Halo, {employeeProfile?.full_name || 'Karyawan'}</h2>
       <div className="mb-8 rounded-xl bg-gray-800 p-8 shadow-xl backdrop-blur-md">
         <p className="text-6xl font-bold text-white">{`${hours}:${minutes}:${seconds}`}</p>
       </div>
-
       <div className={`mb-6 flex items-center space-x-2 rounded-full px-4 py-2 ${locationStatus.valid ? 'bg-green-500/20' : 'bg-red-500/20'}`}>
         <MapPin size={20} className={`${locationStatus.valid ? 'text-green-400' : 'text-red-400'}`} />
         <p className={`text-sm ${locationStatus.valid ? 'text-green-200' : 'text-red-200'}`}>{locationStatus.text}</p>
       </div>
-
-      <button
-        onClick={handleAttendance}
-        disabled={isButtonDisabled}
-        className={`flex items-center space-x-2 rounded-lg px-8 py-4 text-white shadow-lg transition-colors duration-200 
-          ${isButtonDisabled ? 'bg-gray-500 cursor-not-allowed' : buttonColor}`}
-      >
+      <button onClick={handleAttendance} disabled={isButtonDisabled} className={`flex items-center space-x-2 rounded-lg px-8 py-4 text-white shadow-lg transition-colors duration-200 ${isButtonDisabled ? 'bg-gray-500 cursor-not-allowed' : buttonColor}`}>
         <ButtonIcon size={24} />
         <span className="font-semibold text-lg">{isSubmitting ? 'Memproses...' : buttonText}</span>
       </button>
