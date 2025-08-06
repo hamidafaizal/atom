@@ -45,7 +45,6 @@ export default function DetailKaryawan({ employeeId, setActivePage }) {
       console.error('Error mengambil detail karyawan:', employeeError.message);
       setEmployee(null);
     } else {
-      console.log('Detail karyawan berhasil diambil:', employeeData);
       setEmployee(employeeData);
       setFormData({
         full_name: employeeData.full_name || '',
@@ -80,8 +79,19 @@ export default function DetailKaryawan({ employeeId, setActivePage }) {
     
     if (attendanceError) {
       console.error('Error mengambil riwayat absensi:', attendanceError.message);
+      setAttendanceRecords([]);
     } else {
-      setAttendanceRecords(attendanceData);
+      // Hitung gaji harian untuk setiap record absensi
+      const recordsWithSalary = await Promise.all(
+        attendanceData.map(async (record) => {
+          const { data: dailySalary, error: salaryError } = await supabase.rpc('calculate_daily_salary', {
+            p_attendance_id: record.id
+          });
+          if (salaryError) console.error(`Error hitung gaji harian untuk absensi ${record.id}:`, salaryError);
+          return { ...record, daily_salary: dailySalary || 0 };
+        })
+      );
+      setAttendanceRecords(recordsWithSalary);
     }
     setAttendanceLoading(false);
   };
@@ -139,15 +149,13 @@ export default function DetailKaryawan({ employeeId, setActivePage }) {
     return names.map(n => n[0]).join('').slice(0, 2).toUpperCase();
   };
   
-  const formatDate = (isoString) => {
-    if (!isoString) return 'N/A';
-    return new Intl.DateTimeFormat('id-ID', { day: '2-digit', month: '2-digit', year: 'numeric' }).format(new Date(isoString));
-  };
-  
+  const formatDate = (isoString) => new Intl.DateTimeFormat('id-ID', { day: '2-digit', month: '2-digit', year: 'numeric' }).format(new Date(isoString));
   const formatTime = (isoString) => {
     if (!isoString) return '--:--';
     return new Intl.DateTimeFormat('id-ID', { hour: '2-digit', minute: '2-digit', hour12: false }).format(new Date(isoString));
   };
+  const formatCurrency = (value) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(value || 0);
+
 
   if (loading) {
     return <div className="p-6 text-center text-gray-400">Memuat detail karyawan...</div>;
@@ -249,25 +257,28 @@ export default function DetailKaryawan({ employeeId, setActivePage }) {
                 <Plus size={16} /><span>Tambah Absen</span>
             </button>
         </div>
-        <div className="overflow-x-auto rounded-lg">
+        {/* [FIX] Membuat tabel scrollable */}
+        <div className="overflow-y-auto max-h-96 rounded-lg">
           <table className="min-w-full divide-y divide-gray-700">
-            <thead className="bg-gray-700">
+            <thead className="bg-gray-700 sticky top-0">
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-300">Tanggal</th>
                 <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-300">Jam Masuk</th>
                 <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-300">Jam Keluar</th>
+                <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-300">Gaji Hari Ini</th>
                 <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-300">Aksi</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-700 bg-gray-800">
               {attendanceLoading ? (
-                <tr><td colSpan="4" className="text-center py-4 text-gray-400">Memuat riwayat absensi...</td></tr>
+                <tr><td colSpan="5" className="text-center py-4 text-gray-400">Memuat riwayat absensi...</td></tr>
               ) : attendanceRecords.length > 0 ? (
                 attendanceRecords.map((record) => (
                   <tr key={record.id} className="hover:bg-gray-700 transition-colors duration-200">
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-white">{formatDate(record.check_in_time)}</td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-400">{formatTime(record.check_in_time)}</td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-400">{formatTime(record.check_out_time)}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-white">{formatCurrency(record.daily_salary)}</td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                       <button onClick={() => handleOpenEditModal(record)} className="text-blue-500 hover:text-blue-400 focus:outline-none">
                         <Edit size={16} />
@@ -276,7 +287,7 @@ export default function DetailKaryawan({ employeeId, setActivePage }) {
                   </tr>
                 ))
               ) : (
-                <tr><td colSpan="4" className="text-center py-4 text-gray-400">Tidak ada riwayat absensi.</td></tr>
+                <tr><td colSpan="5" className="text-center py-4 text-gray-400">Tidak ada riwayat absensi.</td></tr>
               )}
             </tbody>
           </table>
